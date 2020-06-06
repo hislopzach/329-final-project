@@ -19,7 +19,7 @@ def main():
     i2c = busio.I2C(board.SCL, board.SDA)
     sensor = adafruit_vcnl4010.VCNL4010(i2c)
     print("Sensors Ready:")
-    print(f"initial value {sensor.proximity}")
+    print("initial value: {}".format(sensor.proximity))
     while True:
         for i in range(num_sensors):
             if sensor.proximity > thresholds[i]:
