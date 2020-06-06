@@ -30,6 +30,8 @@ def init():
         sensor_array[i] = adafruit_vcnl4010.VCNL4010(i2c)
 
     # set indicator outputs to logic low
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(channel_list, GPIO.OUT)
     GPIO.output(channel_list, GPIO.LOW)
 
 
