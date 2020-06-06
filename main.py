@@ -12,7 +12,7 @@ sensor = adafruit_vcnl4010.VCNL4010(i2c)
 
 num_sensors = 1
 cup_sunk = [0]*num_sensors
-thresholds = [3100]
+thresholds = [4000]
 
 
 def main():
