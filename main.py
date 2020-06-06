@@ -30,9 +30,10 @@ def init():
         sensor_array[i] = adafruit_vcnl4010.VCNL4010(i2c)
 
     # set indicator outputs to logic low
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(channel_list, GPIO.OUT)
-    GPIO.output(channel_list, GPIO.LOW)
+    # GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(17, GPIO.OUT)
+    GPIO.output(17, GPIO.LOW)
+    #GPIO.output(channel_list, GPIO.LOW)
 
 
 def cleanup():
@@ -59,9 +60,9 @@ def get_sensor_values():
 def main():
     # Initialize I2C bus and VCNL4010 module.
     init()
-    if not (i2c and mux):
-        print("error initializing")
-        exit(1)
+    # if not (i2c and mux):
+    #    print("error initializing")
+    #    exit(1)
     print("Sensors Ready:")
     print("initial values: {}".format(get_sensor_values()))
     while True:
@@ -70,7 +71,8 @@ def main():
                 cup_sunk[i] = 1
                 print("Cup {} has been sunk".format(i))
                 # set gpio pin accordingly
-                set_gpio_output(i)
+                GPIO.output(17, True)
+                #set_gpio_output(i)
 
     cleanup()
 
