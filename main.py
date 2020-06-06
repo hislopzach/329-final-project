@@ -24,3 +24,7 @@ def main():
         for i in range(num_sensors):
             if sensor.proximity > thresholds[i]:
                 print("Ball in cup")
+
+
+if __name__ == '__main__':
+    main()
