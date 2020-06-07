@@ -36,12 +36,16 @@ def init():
     GPIO.output(17, GPIO.LOW)
 
     # catch sigint and cleanup
-    signal.signal(signal.SIGINT, cleanup)
+    signal.signal(signal.SIGINT, sigint_handler)
+
+
+def sigint_handler(signum, frame):
+    cleanup()
+    exit(0)
 
 
 def cleanup():
     GPIO.cleanup()
-    exit(0)
 
 
 def write_state():
