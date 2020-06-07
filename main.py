@@ -1,5 +1,5 @@
 import time
-
+import signal
 import board
 import busio
 
@@ -31,13 +31,17 @@ def init():
 
     # set indicator outputs to logic low
     # GPIO.setmode(GPIO.BOARD)
+    #GPIO.output(channel_list, GPIO.LOW)
     GPIO.setup(17, GPIO.OUT)
     GPIO.output(17, GPIO.LOW)
-    #GPIO.output(channel_list, GPIO.LOW)
+
+    # catch sigint and cleanup
+    signal.signal(signal.SIGINT, cleanup)
 
 
 def cleanup():
     GPIO.cleanup()
+    exit(0)
 
 
 def write_state():
@@ -57,6 +61,12 @@ def get_sensor_values():
     return values
 
 
+def is_game_over():
+    # if there are any 0's, game is not won
+    all_sunk = not any(cup_sunk)
+    # if time is up: game is over
+
+
 def main():
     # Initialize I2C bus and VCNL4010 module.
     init()
@@ -72,7 +82,7 @@ def main():
                 print("Cup {} has been sunk".format(i))
                 # set gpio pin accordingly
                 GPIO.output(17, True)
-                #set_gpio_output(i)
+                # set_gpio_output(i)
 
     cleanup()
 
