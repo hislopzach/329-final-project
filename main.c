@@ -1,7 +1,9 @@
 #include <ti/devices/msp432p4xx/driverlib/driverlib.h>
+
 #include "keypad.h"
 #include "lcd.h"
 #include "string.h"
+#include "timer.h"
 
 #define INPUT_DELAY 100
 #define MESSAGE_DURATION 500
@@ -23,15 +25,16 @@
 #define CUP5_PIN BIT0
 
 // times (assuming 3Mhz clock)
-#define ONE_SEC 3000000
+#define GOD_SEC 15
 #define EXPERT_SEC 30
 #define HARD_SEC 60
 #define MED_SEC 90
 #define EASY_SEC 120
-#define EXPERT_COUNT EXPERT_SEC* ONE_SEC
-#define HARD_COUNT HARD_SEC* ONE_SEC
-#define MED_COUNT MED_SEC* ONE_SEC
-#define EASY_COUNT EASY_SEC* ONE_SEC
+#define BABY_SEC 180
+// #define EXPERT_COUNT EXPERT_SEC* ONE_SEC
+// #define HARD_COUNT HARD_SEC* ONE_SEC
+// #define MED_COUNT MED_SEC* ONE_SEC
+// #define EASY_COUNT EASY_SEC* ONE_SEC
 
 /**
  * CPE 329 Final Project - Connect 4 Cup Pong
@@ -69,12 +72,12 @@ void main(void)
   char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
 
   char key_pressed;
-  uint32_t timer_count, timer_seconds;
+  uint32_t timer_seconds;
   int digit_pressed;
   int digit, is_winner = 0;
 
   // temp:
-  uint32_t timer_value;
+  uint32_t timer_value = 0;
 
   // setup timer A to interrupt every (2) second(s) and decrement timer
   // in the main loop update the display to show the current timer and cup
@@ -91,6 +94,7 @@ void main(void)
     switch (present_state)
     {
       case INIT:
+        MAP_Interrupt_enableMaster();
         // LCD_init();
         // keypad_init();
         timer_init();
@@ -104,32 +108,30 @@ void main(void)
         // is_winner = 0;
         // digit_pressed = 0;
         timer_seconds = HARD_SEC;
-        timer_count = HARD_COUNT;
-        next_state = GAME_PLAY;
+        next_state = START_GAME;
         // next_state = READY;
         break;
       case READY:
         // prompt for difficulty level
         digit_pressed = keypad_getint_blocking();
         // if invalid key pressed do it again
-        while (digit_pressed > 9)
+        while (digit_pressed > 6 && digit_pressed < 1)
         {
           // lcd invalid key
           // lcd prompt again
           digit_pressed = keypad_getint_blocking();
         }
-        // timer_count = get_timer_settings(digit_pressed);
-        timer_seconds = HARD_SEC;
-        timer_count = HARD_COUNT;
+        timer_seconds = get_timer_seconds(digit_pressed);
 
         break;
       case START_GAME:
         // enable timer interupt
-        start_timer(timer_seconds, timer_count);
+        start_timer(timer_seconds);
         // go to game state
         next_state = GAME_PLAY;
         break;
       case GAME_PLAY:
+        // printf("value: %u\n", MAP_Timer32_getValue(TIMER_MODULE));
         if (timer_value != get_current_time())
         {
           printf("Timer: %d\n", get_current_time());
@@ -138,6 +140,13 @@ void main(void)
         if (timer_is_up())
         {
           printf("Timer is over!\n");
+          next_state = END_GAME;
+          break;
+        }
+        if (all_cups_sunk(cup_array))
+        {
+          next_state = END_GAME;
+          break;
         }
         // every .5 s
         // check board for win. if win => game over
@@ -147,8 +156,16 @@ void main(void)
         break;
       case END_GAME:
         // check score
+        if (all_cups_sunk(cup_array))
+        {
+          is_winner = 1;
+        }
         // print message
+        printf("game over!\n");
+        // char message[] = is_winner ? "You won\n!" : "You lost!\n";
+        // printf(message);
         // disable interrupts
+        stop_timer();
         // wait for any key, then go to reset
         next_state = RESET;
         break;
@@ -181,3 +198,45 @@ void zero_array(int* arr, size_t length)
     arr[i] = 0;
   }
 }
+
+int all_cups_sunk(int* cups)
+{
+  int i;
+  for (i = 0; i < NUM_CUPS; i++)
+  {
+    if (cups[i] == 0)
+    {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+uint32_t get_timer_seconds(uint8_t digit)
+{
+  switch (digit)
+  {
+    case 1:
+      return BABY_SEC;
+      break;
+    case 2:
+      return EASY_SEC;
+      break;
+    case 3:
+      return MED_SEC;
+      break;
+    case 4:
+      return HARD_SEC;
+      break;
+    case 5:
+      return EXPERT_SEC;
+      break;
+    case 6:
+      return GOD_SEC;
+      break;
+  }
+}
+
+// port x irq(void) {
+//	clear interrupt flag
+//  cup_array[cup_num] = 1;
