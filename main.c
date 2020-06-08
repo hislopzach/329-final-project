@@ -1,17 +1,37 @@
+#include <ti/devices/msp432p4xx/driverlib/driverlib.h>
 #include "keypad.h"
 #include "lcd.h"
 #include "string.h"
 
 #define INPUT_DELAY 100
 #define MESSAGE_DURATION 500
-#define TURN_DURATION 8000
-#define NUM_ROWS 4
-#define NUM_COLS 4
-#define NUM_CUPS 4
-#define BOARD_SIZE (NUM_COLS * NUM_ROWS)
+#define NUM_CUPS 6
 
-// times
-#define THIRTY_SEC 5000
+// are these needed?
+// we just need to set up interrupts for each one
+#define CUP0_PORT P1
+#define CUP0_PIN BIT0
+#define CUP1_PORT P1
+#define CUP1_PIN BIT0
+#define CUP2_PORT P1
+#define CUP2_PIN BIT0
+#define CUP3_PORT P1
+#define CUP3_PIN BIT0
+#define CUP4_PORT P1
+#define CUP4_PIN BIT0
+#define CUP5_PORT P1
+#define CUP5_PIN BIT0
+
+// times (assuming 3Mhz clock)
+#define ONE_SEC 3000000
+#define EXPERT_SEC 30
+#define HARD_SEC 60
+#define MED_SEC 90
+#define EASY_SEC 120
+#define EXPERT_COUNT EXPERT_SEC* ONE_SEC
+#define HARD_COUNT HARD_SEC* ONE_SEC
+#define MED_COUNT MED_SEC* ONE_SEC
+#define EASY_COUNT EASY_SEC* ONE_SEC
 
 /**
  * CPE 329 Final Project - Connect 4 Cup Pong
@@ -25,26 +45,20 @@ typedef enum state
   READY,
   START_GAME,
   END_GAME,
-  GAME_PLAY,     // switch current team,
+  GAME_PLAY,
   UPDATE_BOARD,  // write current state of board to LEDs
 } state;
 
 // start => turn => check_board => game_over
 //                             |=> next turn
 
-void reset_string(char* arr, size_t length);
-void zero_array(int* arr, size_t length);
-void board_set(int row, int col, int value);
-int board_get(int row, int col);
-int place_chip(int col, int color);
-void InitSensor(uint8_t device_addr,
-                DIO_PORT_Interruptable_Type* port,
-                uint16_t sda_pin,
-                uint16_t scl_pin);
 // globals
-int board[BOARD_SIZE];    // keeps track of current board statr
-int col_count[NUM_COLS];  // keeps track of number of tokens in each column
 int cup_array[NUM_CUPS];
+
+void* cup_ports[] = {CUP0_PORT, CUP1_PORT, CUP2_PORT,
+                     CUP3_PORT, CUP4_PORT, CUP5_PORT};
+uint16_t cup_pins[] = {CUP0_PIN, CUP1_PIN, CUP2_PIN,
+                       CUP3_PIN, CUP4_PIN, CUP5_PIN};
 
 void main(void)
 {
@@ -55,8 +69,18 @@ void main(void)
   char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
 
   char key_pressed;
+  uint32_t timer_count, timer_seconds;
   int digit_pressed;
-  int digit, timer_count, is_winner = 0;
+  int digit, is_winner = 0;
+
+  // temp:
+  uint32_t timer_value;
+
+  // setup timer A to interrupt every (2) second(s) and decrement timer
+  // in the main loop update the display to show the current timer and cup
+  // status
+
+  // set up interrutps for each pin that represents cup state
 
   // state machine:
   // for every loop, perform the actions for the present state
@@ -67,28 +91,25 @@ void main(void)
     switch (present_state)
     {
       case INIT:
-        LCD_init();
-        keypad_init();
-        // sensor_init(0x13, P1, BIT6, BIT7);
-        // sensor_init(0x13, P1, BIT6, BIT7);
-        // sensor_init(0x13, P1, BIT6, BIT7);
-        // sensor_init(0x13, P1, BIT6, BIT7);
+        // LCD_init();
+        // keypad_init();
+        timer_init();
         next_state = RESET;
 
       case RESET:
-        LCD_clear();
-        zero_array(cup_array, NUM_CUPS);
-        reset_string(top_line, LCD_LINESIZE);
-        reset_string(bottom_line, LCD_LINESIZE);
-        is_winner = 0;
-        digit_pressed = 0;
-        // go to locked state
-        next_state = READY;
+        // LCD_clear();
+        // zero_array(cup_array, NUM_CUPS);
+        // reset_string(top_line, LCD_LINESIZE);
+        // reset_string(bottom_line, LCD_LINESIZE);
+        // is_winner = 0;
+        // digit_pressed = 0;
+        timer_seconds = HARD_SEC;
+        timer_count = HARD_COUNT;
+        next_state = GAME_PLAY;
+        // next_state = READY;
         break;
       case READY:
         // prompt for difficulty level
-        // key_pressed = keypad_getkey_blocking();
-        // while (key != "*" && key != "0" && key != "#")
         digit_pressed = keypad_getint_blocking();
         // if invalid key pressed do it again
         while (digit_pressed > 9)
@@ -97,15 +118,27 @@ void main(void)
           // lcd prompt again
           digit_pressed = keypad_getint_blocking();
         }
-        timer_count = get_timer_settings(digit_pressed);
+        // timer_count = get_timer_settings(digit_pressed);
+        timer_seconds = HARD_SEC;
+        timer_count = HARD_COUNT;
 
         break;
       case START_GAME:
         // enable timer interupt
+        start_timer(timer_seconds, timer_count);
         // go to game state
         next_state = GAME_PLAY;
         break;
       case GAME_PLAY:
+        if (timer_value != get_current_time())
+        {
+          printf("Timer: %d\n", get_current_time());
+          timer_value = get_current_time();
+        }
+        if (timer_is_up())
+        {
+          printf("Timer is over!\n");
+        }
         // every .5 s
         // check board for win. if win => game over
         // update leds for game?
@@ -147,75 +180,4 @@ void zero_array(int* arr, size_t length)
   {
     arr[i] = 0;
   }
-}
-
-void board_set(int row, int col, int value)
-{
-  board[col + NUM_COLS * row] = value;
-}
-
-int board_get(int row, int col)
-{
-  return board[col + NUM_COLS * row];
-}
-
-// returns 1 on valid, -1 on invalid
-int place_chip(int col, int color)
-{
-  if (col_count[col] < NUM_ROWS)
-  {
-    board_set(col_count[col], col, color);
-    col_count[col]++;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-uint8_t ReadEEPROM(uint16_t MemAddress)
-{
-  uint8_t ReceiveByte;
-  uint8_t HiAddress;
-  uint8_t LoAddress;
-
-  HiAddress = MemAddress >> 8;
-  LoAddress = MemAddress & 0xFF;
-
-  EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TR;     // Set transmit mode (write)
-  EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;  // I2C start condition
-
-  while (!TransmitFlag)
-    ;  // Wait for EEPROM address to transmit
-  TransmitFlag = 0;
-
-  EUSCI_B0->TXBUF = HiAddress;  // Send the high byte of the memory address
-
-  while (!TransmitFlag)
-    ;  // Wait for the transmit to complete
-  TransmitFlag = 0;
-
-  EUSCI_B0->TXBUF = LoAddress;  // Send the low byte of the memory address
-
-  while (!TransmitFlag)
-    ;  // Wait for the transmit to complete
-  TransmitFlag = 0;
-
-  EUSCI_B0->CTLW0 &= ~EUSCI_B_CTLW0_TR;    // Set receive mode (read)
-  EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTT;  // I2C start condition (restart)
-
-  // Wait for start to be transmitted
-  while ((EUSCI_B0->CTLW0 & EUSCI_B_CTLW0_TXSTT))
-    ;
-
-  // set stop bit to trigger after first byte
-  EUSCI_B0->CTLW0 |= EUSCI_B_CTLW0_TXSTP;
-
-  while (!TransmitFlag)
-    ;  // Wait to receive a byte
-  TransmitFlag = 0;
-
-  ReceiveByte = EUSCI_B0->RXBUF;  // Read byte from the buffer
-
-  return ReceiveByte;
 }
