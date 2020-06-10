@@ -1,6 +1,6 @@
 #include <ti/devices/msp432p4xx/driverlib/driverlib.h>
 #define TIMER_MODULE TIMER32_0_BASE
-#define ONE_SEC 300000
+#define ONE_SEC 3000000
 void timer_init(void);
 void set_timer(unsigned int seconds);
 uint32_t get_current_time(void);
