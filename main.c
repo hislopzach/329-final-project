@@ -11,34 +11,29 @@
 
 // are these needed?
 // we just need to set up interrupts for each one
-#define CUP0_PORT P1
-#define CUP0_PIN BIT0
-#define CUP1_PORT P1
-#define CUP1_PIN BIT0
-#define CUP2_PORT P1
-#define CUP2_PIN BIT0
-#define CUP3_PORT P1
-#define CUP3_PIN BIT0
-#define CUP4_PORT P1
-#define CUP4_PIN BIT0
-#define CUP5_PORT P1
+#define CUP0_PORT P2
+#define CUP0_PIN BIT3
+#define CUP1_PORT P2
+#define CUP1_PIN BIT4
+#define CUP2_PORT P2
+#define CUP2_PIN BIT5
+#define CUP3_PORT P2
+#define CUP3_PIN BIT6
+#define CUP4_PORT P2
+#define CUP4_PIN BIT7
+#define CUP5_PORT P3
 #define CUP5_PIN BIT0
 
 #define RESTART_PORT P1
 #define RESTART_PIN BIT0
 
-// times (assuming 3Mhz clock)
+// times
 #define GOD_SEC 15
 #define EXPERT_SEC 30
 #define HARD_SEC 60
 #define MED_SEC 90
 #define EASY_SEC 120
 #define BABY_SEC 180
-// #define EXPERT_COUNT EXPERT_SEC* ONE_SEC
-// #define HARD_COUNT HARD_SEC* ONE_SEC
-// #define MED_COUNT MED_SEC* ONE_SEC
-// #define EASY_COUNT EASY_SEC* ONE_SEC
-
 /**
  * CPE 329 Final Project - Connect 4 Cup Pong
  */
@@ -69,7 +64,7 @@ void main(void)
   state next_state;
   state previous_state;
 
-  char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
+  // char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
 
   char key_pressed;
   uint32_t timer_seconds;
@@ -92,6 +87,7 @@ void main(void)
         LCD_init();
         keypad_init();
         timer_init();
+        init_cup_ports();
         // set restart port as output
         RESTART_PORT->DIR &= RESTART_PIN;
         next_state = RESET;
@@ -99,8 +95,8 @@ void main(void)
       case RESET:
         LCD_clear();
         zero_array(cup_array, NUM_CUPS);
-        reset_string(top_line, LCD_LINESIZE);
-        reset_string(bottom_line, LCD_LINESIZE);
+        // reset_string(top_line, LCD_LINESIZE);
+        // reset_string(bottom_line, LCD_LINESIZE);
         is_winner = 0;
         // set reset pin low
         RESTART_PORT->OUT &= ~RESTART_PIN;
@@ -294,6 +290,26 @@ uint32_t get_timer_seconds(uint8_t digit)
   }
 }
 
+void init_cup_ports(void)
+{
+  // set cup pins as inputs
+  CUP0_PORT->DIR = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
+  CUP5_PORT->DIR = ~CUP5_PIN;
+
+  // enable interrupts for ports
+  CUP0_PORT->IE = (CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
+  CUP5_PORT->IE = CUP5_PIN;
+  NVIC_EnableIRQ(PORT2_IRQn);
+  NVIC_EnableIRQ(PORT3_IRQn);
+}
+
+void PORT2_IRQHandler(void)
+{
+  int cup_num;
+  // check interrupt flag to see which port interrupted
+  cup_array[cup_num] = 1;
+  // clear interrupt flag
+}
 // port x irq(void) {
 //	clear interrupt flag
 //  cup_array[cup_num] = 1;
