@@ -24,6 +24,9 @@
 #define CUP5_PORT P1
 #define CUP5_PIN BIT0
 
+#define RESTART_PORT P1
+#define RESTART_PIN BIT0
+
 // times (assuming 3Mhz clock)
 #define GOD_SEC 15
 #define EXPERT_SEC 30
@@ -52,9 +55,6 @@ typedef enum state
   UPDATE_BOARD,  // write current state of board to LEDs
 } state;
 
-// start => turn => check_board => game_over
-//                             |=> next turn
-
 // globals
 int cup_array[NUM_CUPS];
 
@@ -79,12 +79,6 @@ void main(void)
   // temp:
   uint32_t timer_value = 0;
 
-  // setup timer A to interrupt every (2) second(s) and decrement timer
-  // in the main loop update the display to show the current timer and cup
-  // status
-
-  // set up interrutps for each pin that represents cup state
-
   // state machine:
   // for every loop, perform the actions for the present state
   // then set set present state to the next state and repeat
@@ -95,34 +89,38 @@ void main(void)
     {
       case INIT:
         MAP_Interrupt_enableMaster();
-        // LCD_init();
-        // keypad_init();
+        LCD_init();
+        keypad_init();
         timer_init();
+        // set restart port as output
+        RESTART_PORT->DIR &= RESTART_PIN;
         next_state = RESET;
 
       case RESET:
-        // LCD_clear();
-        // zero_array(cup_array, NUM_CUPS);
-        // reset_string(top_line, LCD_LINESIZE);
-        // reset_string(bottom_line, LCD_LINESIZE);
-        // is_winner = 0;
-        // digit_pressed = 0;
-        timer_seconds = HARD_SEC;
-        next_state = START_GAME;
-        // next_state = READY;
+        LCD_clear();
+        zero_array(cup_array, NUM_CUPS);
+        reset_string(top_line, LCD_LINESIZE);
+        reset_string(bottom_line, LCD_LINESIZE);
+        is_winner = 0;
+        // set reset pin low
+        RESTART_PORT->OUT &= ~RESTART_PIN;
+        next_state = READY;
         break;
       case READY:
-        // prompt for difficulty level
+        write_keypad_prompt();
         digit_pressed = keypad_getint_blocking();
         // if invalid key pressed do it again
         while (digit_pressed > 6 && digit_pressed < 1)
         {
-          // lcd invalid key
+          // lcd key is invalid
+          write_keypad_error();
+          delayMs(MESSAGE_DURATION);
+          write_keypad_prompt();
           // lcd prompt again
           digit_pressed = keypad_getint_blocking();
         }
         timer_seconds = get_timer_seconds(digit_pressed);
-
+        next_state = START_GAME;
         break;
       case START_GAME:
         // enable timer interupt
@@ -145,27 +143,26 @@ void main(void)
         }
         if (all_cups_sunk(cup_array))
         {
+          is_winner = 1;
           next_state = END_GAME;
           break;
         }
-        // every .5 s
-        // check board for win. if win => game over
-        // update leds for game?
-        // non blocking check for reset key
+        next_state = UPDATE_BOARD;
+        break;
+      case UPDATE_BOARD:
+        write_game_state(cup_array, timer_value);
         next_state = GAME_PLAY;
         break;
       case END_GAME:
         // check score
-        if (all_cups_sunk(cup_array))
-        {
-          is_winner = 1;
-        }
-        // print message
-        printf("game over!\n");
-        // char message[] = is_winner ? "You won\n!" : "You lost!\n";
-        // printf(message);
+        write_game_over(is_winner, timer_value);
+        // wait until any key pressed
+        keypad_getkey_blocking();
         // disable interrupts
         stop_timer();
+
+        // set restart pin high to rpi
+        RESTART_PORT->OUT &= RESTART_PIN;
         // wait for any key, then go to reset
         next_state = RESET;
         break;
@@ -174,6 +171,66 @@ void main(void)
     // load next state
     previous_state = present_state;
     present_state = next_state;
+  }
+}
+
+void write_game_over(int winner, int timer)
+{
+  char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
+  if (winner)
+  {
+    sprintf(top_line, "You Won !!!");
+    sprintf(bottom_line, "Time taken: %d", timer);
+  }
+  else
+  {
+    sprintf(top_line, "You Lost :(");
+    sprintf(bottom_line, "Out of time!");
+  }
+  LCD_write_strings(top_line, bottom_line);
+}
+
+void write_keypad_prompt(void)
+{
+  char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
+  // LCD_clear();
+  strcpy(top_line, "Enter Difficulty: ");
+  strcpy(bottom_line, "1 Easy - 6 Hard");
+  LCD_write_strings(top_line, bottom_line);
+}
+
+void write_keypad_error(void)
+{
+  char top_line[LCD_LINESIZE];
+  strcpy(top_line, "Invalid setting");
+  LCD_write_strings(top_line, NULL);
+}
+
+void write_game_state(int* cup_array, uint32_t timer)
+{
+  char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
+  char reprs[NUM_CUPS];
+  char current_char;
+  int i;
+  for (i = 0; i < NUM_CUPS; i++)
+  {
+    reprs[i] = get_repr(cup_array[i], i);
+  }
+  sprintf(top_line, "%c %c %c       Time", reprs[3], reprs[4], reprs[5]);
+  sprintf(bottom_line, " %c%c%c         %d", reprs[1], reprs[0], reprs[2],
+          timer);
+  LCD_write_strings(top_line, bottom_line);
+}
+
+char get_repr(int value, int index)
+{
+  if (index == 0)
+  {
+    return value ? 'X' : 'O';
+  }
+  else
+  {
+    return value ? 'x' : 'o';
   }
 }
 
