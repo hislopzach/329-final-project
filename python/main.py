@@ -9,13 +9,15 @@ import adafruit_vcnl4010
 import adafruit_tca9548a
 # constants
 num_sensors = 6
-channel_list = [i for i in range(num_sensors)]
 cup_sunk = [0]*num_sensors
 thresholds = [4000]*num_sensors
 # globals
 sensor_array = [-1]*num_sensors
 i2c = None
 mux = None
+
+RESTART_PIN = 17
+channel_list = [19, 21, 23, 22, 24, 26]
 
 
 def init():
@@ -31,10 +33,10 @@ def init():
 
     # set indicator outputs to logic low
     # GPIO.setmode(GPIO.BOARD)
-    #GPIO.output(channel_list, GPIO.LOW)
-    GPIO.setup(17, GPIO.OUT)
-    GPIO.output(17, GPIO.LOW)
-    
+    # GPIO.output(channel_list, GPIO.LOW)
+    GPIO.setup(channel_list, GPIO.OUT)
+    GPIO.output(channel_list, GPIO.LOW)
+
     # setup restart pin to reset array on the rising
     GPIO.setup(RESTART_PIN, GPIO.IN)
     GPIO.add_event_detect(RESTART_PIN, GPIO.RISING)
@@ -74,11 +76,12 @@ def get_sensor_values():
         values[i] = sensor_array[i].proximity
     return values
 
+
 def show_state(cup_sunk):
-    strs = ["x" if c == 1  else " " for c in cup_sunk ]
+    strs = ["x" if c == 1 else " " for c in cup_sunk]
     # print(strs)
     print("\n")
-    print("({}) ({}) ({})".format(strs[3], strs[4], strs[5] ))
+    print("({}) ({}) ({})".format(strs[3], strs[4], strs[5]))
     print("  ({}) ({})  ".format(strs[1], strs[2]))
     print("    ({})     ".format(strs[0]))
 
@@ -96,10 +99,8 @@ def main():
             if not cup_sunk[i] and sensor_array[i].proximity > thresholds[i]:
                 cup_sunk[i] = 1
                 show_state(cup_sunk)
-                # print("Cup ({}) has been sunk".format(i))
                 # set gpio pin accordingly
-                GPIO.output(17, True)
-                # set_gpio_output(i)
+                set_gpio_output(i)
 
     cleanup()
 
