@@ -35,6 +35,10 @@ def init():
     GPIO.setup(17, GPIO.OUT)
     GPIO.output(17, GPIO.LOW)
     
+    # setup restart pin to reset array on the rising
+    GPIO.setup(RESTART_PIN, GPIO.IN)
+    GPIO.add_event_detect(RESTART_PIN, GPIO.RISING)
+    GPIO.add_event_callback(RESTART_PIN, reset_cups)
     # for i in range(num_sensors):
     #     print("cup ({}): ({})".format(i,sensor_array[i].proximity))
     # catch sigint and cleanup
@@ -44,6 +48,10 @@ def init():
 def sigint_handler(signum, frame):
     cleanup()
     exit(0)
+
+
+def reset_cups():
+    cup_sunk = [0]*num_sensors
 
 
 def cleanup():
