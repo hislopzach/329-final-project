@@ -83,13 +83,13 @@ void main(void)
     switch (present_state)
     {
       case INIT:
-        MAP_Interrupt_enableMaster();
         LCD_init();
         keypad_init();
         timer_init();
         init_cup_ports();
         // set restart port as output
         RESTART_PORT->DIR &= RESTART_PIN;
+        MAP_Interrupt_enableMaster();
         next_state = RESET;
 
       case RESET:
@@ -173,10 +173,11 @@ void main(void)
 void write_game_over(int winner, int timer)
 {
   char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
+  LCD_clear();
   if (winner)
   {
     sprintf(top_line, "You Won !!!");
-    sprintf(bottom_line, "Time taken: %d", timer);
+    sprintf(bottom_line, "Time taken: %2d", timer);
   }
   else
   {
@@ -212,8 +213,8 @@ void write_game_state(int* cup_array, uint32_t timer)
   {
     reprs[i] = get_repr(cup_array[i], i);
   }
-  sprintf(top_line, "%c %c %c       Time", reprs[3], reprs[4], reprs[5]);
-  sprintf(bottom_line, " %c%c%c         %d", reprs[1], reprs[0], reprs[2],
+  sprintf(top_line, "%c %c %c       Time", reprs[3], reprs[4], reprs[5], timer);
+  sprintf(bottom_line, " %c%c%c         %2d", reprs[1], reprs[0], reprs[2],
           timer);
   LCD_write_strings(top_line, bottom_line);
 }
