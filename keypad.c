@@ -49,7 +49,8 @@ uint8_t keypad_getkey(void)
    * It activates one column at a time and reads the input to see
    * which row is active. */
 
-  for (col = 0; col < 3; col++) {
+  for (col = 0; col < 3; col++)
+  {
     // zero out bits 6-4
     KEYPAD_PORT->OUT &= ~(COL1 | COL2 | COL3);
 
@@ -101,7 +102,8 @@ pressed on the keypad
 */
 char key_to_char(uint8_t key)
 {
-  switch (key) {
+  switch (key)
+  {
     case 10:
       return '*';
     case 12:
@@ -119,13 +121,31 @@ char keypad_getkey_blocking(void)
 {
   uint8_t keypad_value;
   char last_pressed;
-  while (1) {
+  while (1)
+  {
     keypad_value = keypad_getkey();
-    if (keypad_value != NO_KEY) {
+    if (keypad_value != NO_KEY)
+    {
       // printf("key pressed: %d\n", keypad_value);
       last_pressed = key_to_char(keypad_value);
       // printf("char out: %c\n", last_pressed);
       return last_pressed;
+    }
+  }
+}
+
+/* A blocking version of get_key that will wait until a key is pressed until it
+ * returns the integer key */
+uint8_t keypad_getint_blocking(void)
+{
+  uint8_t keypad_value;
+  char last_pressed;
+  while (1)
+  {
+    keypad_value = keypad_getkey();
+    if (keypad_value != NO_KEY)
+    {
+      return keypad_value;
     }
   }
 }
