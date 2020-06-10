@@ -25,7 +25,7 @@
 #define CUP5_PIN BIT0
 
 #define RESTART_PORT P1
-#define RESTART_PIN BIT0
+#define RESTART_PIN BIT6
 
 // times
 #define GOD_SEC 15
@@ -51,7 +51,7 @@ typedef enum state
 } state;
 
 // globals
-int cup_array[NUM_CUPS];
+volatile int cup_array[NUM_CUPS];
 
 void* cup_ports[] = {CUP0_PORT, CUP1_PORT, CUP2_PORT,
                      CUP3_PORT, CUP4_PORT, CUP5_PORT};
@@ -296,20 +296,37 @@ void init_cup_ports(void)
   CUP0_PORT->DIR = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
   CUP5_PORT->DIR = ~CUP5_PIN;
 
+  // high to low interrupt
+  CUP1_PORT->IES = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
+  CUP5_PORT->IES = ~CUP5_PIN;
   // enable interrupts for ports
   CUP0_PORT->IE = (CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
   CUP5_PORT->IE = CUP5_PIN;
+  // enable interrupts for the ports
   NVIC_EnableIRQ(PORT2_IRQn);
   NVIC_EnableIRQ(PORT3_IRQn);
 }
 
 void PORT2_IRQHandler(void)
 {
-  int cup_num;
+  printf("ifg: %x", P2->IFG);
+  int i;
   // check interrupt flag to see which port interrupted
-  cup_array[cup_num] = 1;
+
+  for (i = 0; i < 5; i++)
+  {
+    if (P2->IFG & cup_pins[i])
+    {
+      cup_array[i] = 1;
+    }
+  }
   // clear interrupt flag
+  P2->IFG = 0;
 }
-// port x irq(void) {
-//	clear interrupt flag
-//  cup_array[cup_num] = 1;
+
+void PORT3_IRQHandler(void)
+{
+  printf("ifg: %x", P3->IFG);
+  cup_array[5] = 1;
+  P3->IFG = 0;
+}
