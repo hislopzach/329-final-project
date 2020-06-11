@@ -3,6 +3,7 @@ import signal
 import board
 import busio
 
+import random
 import RPi.GPIO as GPIO
 
 import adafruit_vcnl4010
@@ -10,15 +11,15 @@ import adafruit_tca9548a
 # constants
 num_sensors = 6
 cup_sunk = [0]*num_sensors
-thresholds = [4000]*num_sensors
+thresholds = [3600]*num_sensors
 # globals
 sensor_array = [-1]*num_sensors
 i2c = None
 mux = None
 
-RESTART_PIN = 17
-channel_list = [19, 21, 23, 22, 24, 26]
-
+RESTART_PIN = 22
+channel_list = [10, 9, 11, 25, 8, 7]
+reset_mode = False
 
 def init():
     # init i2c bus
@@ -29,34 +30,42 @@ def init():
     # setup array of sensors
     for i in range(num_sensors):
         sensor_array[i] = adafruit_vcnl4010.VCNL4010(mux[i])
-        # sensor_array[i] = adafruit_vcnl4010.VCNL4010(i2c)
 
     # set indicator outputs to logic low
-    # GPIO.setmode(GPIO.BOARD)
-    # GPIO.output(channel_list, GPIO.LOW)
+    GPIO.setmode(GPIO.BCM)
     GPIO.setup(channel_list, GPIO.OUT)
     GPIO.output(channel_list, GPIO.LOW)
 
     # setup restart pin to reset array on the rising
-    GPIO.setup(RESTART_PIN, GPIO.IN)
+    GPIO.setup(RESTART_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
     GPIO.add_event_detect(RESTART_PIN, GPIO.RISING)
     GPIO.add_event_callback(RESTART_PIN, reset_pin_handler)
-    # for i in range(num_sensors):
-    #     print("cup ({}): ({})".format(i,sensor_array[i].proximity))
     # catch sigint and cleanup
     signal.signal(signal.SIGINT, sigint_handler)
+    pin_status()
 
 
 def sigint_handler(signum, frame):
+    GPIO.output(channel_list, GPIO.LOW)
     cleanup()
     exit(0)
 
 
 def reset_pin_handler(channel):
+    global reset_mode
+    reset_mode = True
     reset_cups()
 
+def pin_status():
+    status = []
+    for pin in channel_list:
+        status.append(GPIO.input(pin))
+    print(status)
 
 def reset_cups():
+    global cup_sunk
+    GPIO.output(channel_list, GPIO.LOW)
+    print("reset_mode: {}".format(reset_mode))
     cup_sunk = [0]*num_sensors
 
 
@@ -91,21 +100,36 @@ def show_state(cup_sunk):
 
 
 def main():
+    global reset_mode
     init()
     # if not (i2c and mux):
     #    print("error initializing")
     #    exit(1)
     print("Sensors Ready:")
+    pin_status()
     show_state(cup_sunk)
     # print("initial values: ({})".format(get_sensor_values()))
     while True:
-        for i in range(num_sensors):
-            if not cup_sunk[i] and sensor_array[i].proximity > thresholds[i]:
-                cup_sunk[i] = 1
-                show_state(cup_sunk)
-                # set gpio pin accordingly
-                set_gpio_output(i)
-
+        # if reset signal has been received, wait for signal to go low before continuing
+        if reset_mode:
+            print("waiting for reset to go low")
+            pin_value = GPIO.input(RESTART_PIN)
+            while pin_value:
+                pin_value = GPIO.input(RESTART_PIN)
+            reset_mode = False
+            print("reset is low")
+            time.sleep(2)
+        else:
+            # if random.randint(1,3) % 2 == 0:
+            #     print(sensor_array[0].proximity)
+            for i in range(num_sensors):
+                if not cup_sunk[i] and sensor_array[i].proximity > thresholds[i]:
+                    cup_sunk[i] = 1
+                    show_state(cup_sunk)
+                    # set gpio pin accordingly
+                    set_gpio_output(i)
+                    pin_status()
+    
     cleanup()
 
 
