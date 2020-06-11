@@ -89,6 +89,9 @@ void main(void)
         init_cup_ports();
         // set restart port as output
         RESTART_PORT->DIR &= RESTART_PIN;
+        // set reset pin low
+        printf("reset pin low");
+        RESTART_PORT->OUT = 0;
         MAP_Interrupt_enableMaster();
         next_state = RESET;
 
@@ -98,12 +101,12 @@ void main(void)
         // reset_string(top_line, LCD_LINESIZE);
         // reset_string(bottom_line, LCD_LINESIZE);
         is_winner = 0;
-        // set reset pin low
-        RESTART_PORT->OUT &= ~RESTART_PIN;
+        timer_value = 0;
         next_state = READY;
         break;
       case READY:
         write_keypad_prompt();
+        delayMs(MESSAGE_DURATION);
         digit_pressed = keypad_getint_blocking();
         // if invalid key pressed do it again
         while (digit_pressed > 6 && digit_pressed < 1)
@@ -116,6 +119,9 @@ void main(void)
           digit_pressed = keypad_getint_blocking();
         }
         timer_seconds = get_timer_seconds(digit_pressed);
+        // set reset pin low
+        printf("reset pin low");
+        RESTART_PORT->OUT = 0;
         next_state = START_GAME;
         break;
       case START_GAME:
@@ -152,13 +158,14 @@ void main(void)
       case END_GAME:
         // check score
         write_game_over(is_winner, timer_value);
+        // set restart pin high to rpi
+        RESTART_PORT->OUT = RESTART_PIN;
         // wait until any key pressed
         keypad_getkey_blocking();
         // disable interrupts
         stop_timer();
 
-        // set restart pin high to rpi
-        RESTART_PORT->OUT &= RESTART_PIN;
+
         // wait for any key, then go to reset
         next_state = RESET;
         break;
@@ -170,14 +177,14 @@ void main(void)
   }
 }
 
-void write_game_over(int winner, int timer)
+void write_game_over(int winner, int timer, uint32_t timer_seconds)
 {
   char top_line[LCD_LINESIZE], bottom_line[LCD_LINESIZE];
   LCD_clear();
   if (winner)
   {
     sprintf(top_line, "You Won !!!");
-    sprintf(bottom_line, "Time taken: %2d", timer);
+    sprintf(bottom_line, "Time taken: %3d", timer);
   }
   else
   {
@@ -213,8 +220,8 @@ void write_game_state(int* cup_array, uint32_t timer)
   {
     reprs[i] = get_repr(cup_array[i], i);
   }
-  sprintf(top_line, "%c %c %c       Time", reprs[3], reprs[4], reprs[5], timer);
-  sprintf(bottom_line, " %c%c%c         %2d", reprs[1], reprs[0], reprs[2],
+  sprintf(top_line, "%c %c %c       Time", reprs[3], reprs[4], reprs[5]);
+  sprintf(bottom_line, " %c%c%c         %3d  ", reprs[1], reprs[0], reprs[2],
           timer);
   LCD_write_strings(top_line, bottom_line);
 }
@@ -297,12 +304,21 @@ void init_cup_ports(void)
   CUP0_PORT->DIR = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
   CUP5_PORT->DIR = ~CUP5_PIN;
 
-  // high to low interrupt
-  CUP1_PORT->IES = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
+//  setup pulldown resistors
+  CUP0_PORT->REN = CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN;
+  CUP0_PORT->OUT = 0;
+  CUP5_PORT->REN = CUP5_PIN;
+  CUP5_PORT->OUT = 0;
+
+  // rising edge interrupt
+  CUP0_PORT->IES = ~(CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
   CUP5_PORT->IES = ~CUP5_PIN;
   // enable interrupts for ports
   CUP0_PORT->IE = (CUP0_PIN | CUP1_PIN | CUP2_PIN | CUP3_PIN | CUP4_PIN);
   CUP5_PORT->IE = CUP5_PIN;
+
+  CUP0_PORT->IFG = 0;
+  CUP5_PORT->IFG = 0;
   // enable interrupts for the ports
   NVIC_EnableIRQ(PORT2_IRQn);
   NVIC_EnableIRQ(PORT3_IRQn);
@@ -310,7 +326,7 @@ void init_cup_ports(void)
 
 void PORT2_IRQHandler(void)
 {
-  printf("ifg: %x", P2->IFG);
+  printf("P2 in: %x\n", P2->IN);
   int i;
   // check interrupt flag to see which port interrupted
 
@@ -327,7 +343,7 @@ void PORT2_IRQHandler(void)
 
 void PORT3_IRQHandler(void)
 {
-  printf("ifg: %x", P3->IFG);
+  printf("p3 in: %x\n", P3->IN);
   cup_array[5] = 1;
   P3->IFG = 0;
 }
